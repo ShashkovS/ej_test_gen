@@ -1,0 +1,5 @@
+build/
+dist/
+contest_tester.egg-info/
+/**/__pycache__/
+/**/.idea/
