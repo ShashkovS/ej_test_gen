@@ -1,4 +1,4 @@
-This lib can be used for creation default contest folders structure and solution templates. Also given tests can be run.
+Competitive programming helper: creation default contest folders structure and solution templates. Also helps with testing organization and automatic testing.
 ========================
 
 Example:

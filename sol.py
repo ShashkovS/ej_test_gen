@@ -1,6 +1,10 @@
-from math import factorial
-
 n = int(input())
-fct = factorial(n)
+fct = 1
+for i in range(2, n + 1):
+    fct *= i
 print(fct)
-print(len(str(fct)))
+ln = 0
+while fct:
+    fct //= 10
+    ln += 1
+print(ln)
