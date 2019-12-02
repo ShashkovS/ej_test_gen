@@ -4,35 +4,53 @@ import os
 import time
 import sys
 import logging
-logging.basicConfig(level=logging.DEBUG)
+import random
+
+random.seed(2019)
+logging.basicConfig(level=logging.INFO)
 lg = logging.getLogger('Runner')
 
-__all__ = ['TestRunner']
-
+__all__ = ['TestRunner', 'random']
 
 _current_path = os.path.dirname(os.path.abspath(__file__))
 
 
 class TestRunner:
-    def __init__(self, test_path=_current_path,
-                 executable=sys.executable, module_or_parm='sol.py',
-                 test_encoding="utf-8", res_encoding="utf-8",
-                 test_is_binary=False, res_is_binary=False,
-                 res_suffix=".a", timeout=5):
+    def __init__(self,
+                 solution='sol.py',
+                 *,
+                 test_path=_current_path,
+                 test_encoding="utf-8",
+                 res_encoding="utf-8",
+                 test_is_binary=False,
+                 res_is_binary=False,
+                 res_suffix=".a",
+                 cpp_compiler="g++",
+                 py_executable=sys.executable,
+                 timeout=5,
+                 use_WSL=False,
+                 compilation_timeout=30,
+                 ):
         self.test_path = test_path
-        self.executable = executable
-        self.module_or_parm = module_or_parm
+        self.py_executable = py_executable
+        self.solution = solution
         self.test_encoding = test_encoding
         self.res_encoding = res_encoding
         self.test_is_binary = test_is_binary
         self.res_is_binary = res_is_binary
         self.res_suffix = res_suffix
+        self.cpp_compiler = cpp_compiler
         self.timeout = timeout
+        self.use_WSL = use_WSL
+        self.compilation_timeout = compilation_timeout
         os.chdir(test_path)
+        self.compile_sol()
+        self._clean_up()
+
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(test_path={self.test_path!r}, executable={self.executable!r}, ' \
-               f'module_or_parm={self.module_or_parm!r}, ' \
+        return f'{self.__class__.__name__}(test_path={self.test_path!r}, executable={self.py_executable!r}, ' \
+               f'module_or_parm={self.solution!r}, ' \
                f'test_encoding={self.test_encoding!r}, res_encoding={self.res_encoding!r}, ' \
                f'test_is_binary={self.test_is_binary!r}, res_is_binary={self.res_is_binary!r}, ' \
                f'res_suffix={self.res_suffix!r}), timeout={self.timeout!r})'
@@ -43,7 +61,15 @@ class TestRunner:
         else:
             input = bytes(to_stdin, encoding=self.test_encoding)
         st = time.time()
-        pr = subprocess.Popen([self.executable, self.module_or_parm],
+        if self._compiled:
+            to_run = ['./' + self._compiled]
+        else:  # TODO Вообще-то, это если питон
+            to_run = [self.py_executable, self.solution]
+        to_run = ' '.join(to_run)
+        if self.use_WSL:
+            to_run = f'bash -c "{to_run}"'
+        lg.debug(to_run)
+        pr = subprocess.Popen(to_run,
                               stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
                               cwd=self.test_path)
         stdout_data = pr.communicate(input=input, timeout=self.timeout)
@@ -58,6 +84,15 @@ class TestRunner:
             if trash_pos >= 0:
                 from_stdout = from_stdout[:trash_pos]
         return from_stdout, dur
+
+    def _clean_up(self):
+        # Удаляем старые тесты
+        for filename in os.listdir(self.test_path):
+            testname = filename
+            if testname.endswith('.a'):
+                testname = testname[:-2]
+            if testname.isdigit():
+                os.remove(os.path.join(_current_path, filename))
 
     @staticmethod
     def _list_test_files(path):
@@ -122,7 +157,7 @@ class TestRunner:
             show_test = self._prc_text_for_console(test_data, self.test_is_binary)
             show_res = self._prc_text_for_console(from_stdout, self.res_is_binary)
             show_ans = self._prc_text_for_console(ans_data, self.res_is_binary)
-            
+
             eq, description = self._cmp_two_outputs(ans_data, from_stdout)
             msg = f'Test {tname}, {"OK" if eq else "WA"}. Dur:{dur:0.2f}.  {show_test} -> {show_res}  (Corr: {show_ans})'
             if eq:
@@ -130,11 +165,54 @@ class TestRunner:
             else:
                 lg.error(msg)
 
+    def compile_sol(self):
+        self._compiled = None
+        name, _, ext = self.solution.rpartition('.')
+        ext = ext.lower()
+        if ext == 'py':
+            return
+        elif ext == 'cpp':
+            self._compiled = f'{name}.exe'
+            if os.path.isfile(self._compiled):
+                os.remove(self._compiled)
+            cmd = ' '.join([self.cpp_compiler, self.solution, '-o', self._compiled])
+            if self.use_WSL:
+                cmd = f'bash -c "{cmd}"'
+            lg.debug(cmd)
+            pr = subprocess.Popen(cmd,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  cwd=self.test_path)
+            stdout, stderr = pr.communicate(timeout=self.compilation_timeout)
+            lg.debug(f'{stdout=}{stderr=}')
+            if stderr:
+                raise EnvironmentError(stderr.decode('utf-8', 'ignore'))
+
     def run_test(self):
         test_files = self._list_test_files(self.test_path)
         self._run_given_tests(test_files)
 
+    def test(self, test, *, _test_num=[0], _max_len=40):
+        test = test.strip()
+        text_prt = self._prc_text_for_console(test, self.test_is_binary)
+        _test_num[0] += 1
+        _test_num_str = '{:03}'.format(_test_num[0])
+        print('{}: {}{}    -->    '.format(_test_num_str, text_prt[:_max_len].ljust(_max_len),
+                                           '...' if text_prt[_max_len:] else '   '), end='')
+
+        ans, dur = self._run(test)
+        ans_prt = self._prc_text_for_console(ans, self.res_is_binary)
+        if dur <= self.timeout:
+            print('{}{}  Done! {:.2}c'.format(ans_prt[:_max_len].ljust(_max_len),
+                                              '...' if ans_prt[_max_len:] else '   ', dur))
+            with open(_test_num_str, 'w') as f:
+                f.write(test)
+            with open(_test_num_str + '.a', 'w') as f:
+                f.write(ans)
+        else:
+            print('timeout', '{:.2}c'.format(dur))
+
 
 if __name__ == '__main__':
-    runner = TestRunner()
-    runner.run_test()
+    # runner = TestRunner()
+    # runner.run_test()
+    print('sudo rm -rf, are you sure? Ok, type "password".')
