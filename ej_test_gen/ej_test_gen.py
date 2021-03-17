@@ -66,9 +66,8 @@ class TestRunner:
             to_run = ['./' + self._compiled]
         else:  # TODO Вообще-то, это если питон
             to_run = [self.py_executable, self.solution]
-        to_run = ' '.join(to_run)
         if self.use_WSL:
-            to_run = 'bash -c "{}"'.format(to_run)
+            to_run = 'bash -c "{}"'.format(' '.join(to_run))
         lg.debug(to_run)
         pr = subprocess.Popen(to_run,
                               stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
