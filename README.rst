@@ -1,16 +1,48 @@
-Competitive programming helper: creation default contest folders structure and solution templates. Also helps with testing organization and automatic testing.
-========================
+Create tests for ejudge using solution
+======================================
 
 Example:
 
+.. code-block:: python
+
+        # sol.py
+        n = int(input())
+        fct = 1
+        for i in range(2, n + 1):
+            fct *= i
+        print(fct)
+
+
+.. code-block:: python
+
+        # test_creator.py
+        from ej_test_gen import TestRunner, random
+        runner = TestRunner(solution="sol.py")
+        # runner = TestRunner(solution="sol.cpp", use_WSL=True)
+        # runner = TestRunner(solution="sol.py", use_WSL=True, py_executable='python3.8')
+
+        runner.test("""3""")
+        runner.test("""5""")
+
+        for tests_in_group, group_max in [(2, 10), (5, 50)]:
+            for __ in range(tests_in_group):
+                n = random.randint(0, group_max)
+                test = f'{n}'
+                runner.test(test)
+
+
+
 .. code-block:: bash
 
-          PS \repos\contest_tester> python .\contest_tester.py
-          INFO:Runner:Processing test 01...
-          INFO:Runner:Test 01.a, OK. Dur:0.16.  3 -> 6¶1¶  (Corr: 6¶1¶)
-          INFO:Runner:Processing test 02...
-          INFO:Runner:Test 02.a, OK. Dur:0.17.  20¶ -> 2432902008176640000¶19¶  (Corr: 2432902008176640000¶19¶)
-
+        python test_creator.py
+        001: 3         -->    6¶                                           Done! 0.27c
+        002: 2         -->    2¶                                           Done! 0.25c
+        003: 3         -->    6¶                                           Done! 0.26c
+        004: 31        -->    8222838654177922817725562880000000¶          Done! 0.25c
+        005: 10        -->    3628800¶                                     Done! 0.26c
+        006: 15        -->    1307674368000¶                               Done! 0.26c
+        007: 41        -->    3345252661316380710817006205344075166515     Done! 0.27c
+        008: 15        -->    1307674368000¶                               Done! 0.27c
 
 License
 -------
