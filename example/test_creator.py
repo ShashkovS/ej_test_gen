@@ -1,5 +1,5 @@
 from ej_test_gen import TestRunner, random
-runner = TestRunner(solution="sol.py")
+runner = TestRunner(solution="sol.py", test_path='.')
 # runner = TestRunner(solution="sol.cpp", use_WSL=True)
 # runner = TestRunner(solution="sol.py", use_WSL=True, py_executable='python3.8')
 
