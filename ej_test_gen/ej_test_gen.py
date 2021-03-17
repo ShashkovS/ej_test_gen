@@ -18,7 +18,6 @@ _current_path = os.getcwd()
 class TestRunner:
     def __init__(self,
                  solution='sol.py',
-                 *,
                  test_path=_current_path,
                  test_encoding="utf-8",
                  res_encoding="utf-8",
