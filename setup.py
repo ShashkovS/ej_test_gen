@@ -20,16 +20,15 @@ from setuptools import find_packages, setup, Command
 here = os.path.abspath(os.path.dirname(__file__))
 
 # Package meta-data.
-NAME = 'contest_tester'
+NAME = 'ej_test_gen'
 DESCRIPTION = 'Create tests for ejudge and co'
-URL = 'https://github.com/ShashkovS/contest_tester'
+URL = 'https://github.com/ShashkovS/ej_test_gen'
 EMAIL = 'sh57@yandex.ru'
 AUTHOR = 'Sergey Shashkov'
-VERSION = '0.0.1'
 
 # Current version
-# with io.open(os.path.join(here, NAME, '__init__.py'), encoding='utf-8') as f:
-#     VERSION = re.search(r'\d+\.\d+\.\d+', f.read()).group()
+with io.open(os.path.join(here, NAME, '__init__.py'), encoding='utf-8') as f:
+    VERSION = re.search(r'\d+\.\d+\.\d+', f.read()).group()
 
 # What packages are required for this module to be executed?
 with io.open(os.path.join(here, 'requirements.txt'), encoding='utf-8') as f:
