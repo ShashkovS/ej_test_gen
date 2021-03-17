@@ -22,6 +22,6 @@ runner2 = TestRunner(
 )
 """
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 from .ej_test_gen import *

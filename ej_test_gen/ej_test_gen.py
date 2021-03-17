@@ -49,11 +49,13 @@ class TestRunner:
 
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(test_path={self.test_path!r}, executable={self.py_executable!r}, ' \
-               f'module_or_parm={self.solution!r}, ' \
-               f'test_encoding={self.test_encoding!r}, res_encoding={self.res_encoding!r}, ' \
-               f'test_is_binary={self.test_is_binary!r}, res_is_binary={self.res_is_binary!r}, ' \
-               f'res_suffix={self.res_suffix!r}), timeout={self.timeout!r})'
+        return '{}(test_path = {!r}, py_executable = {!r}, solution = {!r}, test_encoding = {!r}, res_encoding = {!r}, ' \
+               'test_is_binary = {!r}, res_is_binary = {!r}, res_suffix = {!r}, cpp_compiler = {!r}, timeout = {!r}, ' \
+               'use_WSL = {!r}, compilation_timeout = {!r})'.format(
+            self.__class__.__name__, self.test_path, self.py_executable, self.solution, self.test_encoding,
+            self.res_encoding, self.test_is_binary, self.res_is_binary, self.res_suffix, self.cpp_compiler,
+            self.timeout, self.use_WSL, self.compilation_timeout
+        )
 
     def _run(self, to_stdin):
         if self.test_is_binary:
@@ -67,7 +69,7 @@ class TestRunner:
             to_run = [self.py_executable, self.solution]
         to_run = ' '.join(to_run)
         if self.use_WSL:
-            to_run = f'bash -c "{to_run}"'
+            to_run = 'bash -c "{}"'.format(to_run)
         lg.debug(to_run)
         pr = subprocess.Popen(to_run,
                               stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -159,7 +161,7 @@ class TestRunner:
             show_ans = self._prc_text_for_console(ans_data, self.res_is_binary)
 
             eq, description = self._cmp_two_outputs(ans_data, from_stdout)
-            msg = f'Test {tname}, {"OK" if eq else "WA"}. Dur:{dur:0.2f}.  {show_test} -> {show_res}  (Corr: {show_ans})'
+            msg = 'Test {}, {}. Dur:{:0.2f}.  {} -> {}  (Corr: {})'.format(tname, "OK" if eq else "WA", dur, show_test, show_res, show_ans)
             if eq:
                 lg.info(msg)
             else:
@@ -172,18 +174,18 @@ class TestRunner:
         if ext == 'py':
             return
         elif ext == 'cpp':
-            self._compiled = f'{name}.exe'
+            self._compiled = '{}.exe'.format(name)
             if os.path.isfile(self._compiled):
                 os.remove(self._compiled)
             cmd = ' '.join([self.cpp_compiler, self.solution, '-o', self._compiled])
             if self.use_WSL:
-                cmd = f'bash -c "{cmd}"'
+                cmd = 'bash -c "{}"'.format(cmd)
             lg.debug(cmd)
             pr = subprocess.Popen(cmd,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   cwd=self.test_path)
             stdout, stderr = pr.communicate(timeout=self.compilation_timeout)
-            lg.debug(f'{stdout=}{stderr=}')
+            lg.debug('stdout={}\nstderr={}'.format(stdout, stderr))
             if stderr:
                 raise EnvironmentError(stderr.decode('utf-8', 'ignore'))
 
