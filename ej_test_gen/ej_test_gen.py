@@ -12,7 +12,7 @@ lg = logging.getLogger('Runner')
 
 __all__ = ['TestRunner', 'random']
 
-_current_path = os.path.dirname(os.path.abspath(__file__))
+_current_path = os.getcwd()
 
 
 class TestRunner:
