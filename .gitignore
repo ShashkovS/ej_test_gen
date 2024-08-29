@@ -5,3 +5,6 @@ ej_test_gen.egg-info/
 /**/.idea/
 venv/
 *egg-info*
+/example/**/??
+/example/**/??.a
+**/*.exe

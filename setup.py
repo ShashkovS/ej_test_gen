@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Note: To use the 'upload' functionality of this file, you must:
-#   $ pip install twine
+# pip install wheel twine
 
 # build and upload
 # python setup.py sdist bdist_wheel
-# twine upload dist/*
-
+# python -m twine check dist/*
+# python -m twine upload dist/*
 
 import io
 import os
@@ -27,7 +26,7 @@ EMAIL = 'sh57@yandex.ru'
 AUTHOR = 'Sergey Shashkov'
 
 # Current version
-with io.open(os.path.join(here, NAME, '__init__.py'), encoding='utf-8') as f:
+with io.open(os.path.join(here, 'src', NAME, f'__about__.py'), encoding='utf-8') as f:
     VERSION = re.search(r'\d+\.\d+\.\d+', f.read()).group()
 
 # What packages are required for this module to be executed?
@@ -35,8 +34,8 @@ with io.open(os.path.join(here, 'requirements.txt'), encoding='utf-8') as f:
     REQUIRED = [row.strip() for row in f.readlines() if row.strip() and not row.strip().startswith('#')]
 
 # Import the README and use it as the long-description.
-# Note: this will only work if 'README.rst' is present in your MANIFEST.in file!
-with io.open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
+# Note: this will only work if 'README.md' is present in your MANIFEST.in file!
+with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = '\n' + f.read()
 
 
@@ -79,22 +78,20 @@ setup(
     version=VERSION,
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
-    long_description_content_type='text/x-rst',
+    long_description_content_type='text/markdown',
     author=AUTHOR,
     author_email=EMAIL,
     url=URL,
-    packages=find_packages(exclude=('tests',)),
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
-
+    packages=find_packages("src"),
+    package_dir={"": "src"},
     entry_points={
         'console_scripts': [],
     },
     install_requires=REQUIRED,
-    include_package_data=True,
+    # include_package_data=True,
     package_data={
         # If any package contains *.txt or *.rst files, include them:
-        '': ['*.txt', '*.rst', '*.in'],
+        '': ['*.txt', '*.rst', '*.in', '*.png'],
     },
     license='MIT',
     classifiers=[
@@ -110,9 +107,10 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
     # $ setup.py publish support.
