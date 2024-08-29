@@ -1,5 +1,10 @@
 # Create tests for ejudge using solution
 
+## Install
+```bash
+pip install git+https://github.com/ShashkovS/ej_test_gen.git --user --upgrade
+```
+
 ## Example:
 
 ```python

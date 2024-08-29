@@ -87,6 +87,8 @@ class TestRunner:
             to_run = [self.py_executable, self.solution]
         if self.use_WSL:
             to_run = 'bash -c "{}"'.format(' '.join(to_run))
+        else:
+            to_run = ' '.join(to_run)
         lg.debug(to_run)
         pr = subprocess.Popen(
             to_run,
