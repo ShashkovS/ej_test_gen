@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ej_test_gen"
+version = "0.1.0"
+description = "Create tests for ejudge and co"
+readme = "README.md"
+authors = [
+    {name = "Sergey Shashkov", email = "sh57@yandex.ru"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+
+dependencies = [
+    # Здесь указаны зависимости из requirements.txt
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ShashkovS/ej_test_gen"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"" = ["*.txt", "*.rst", "*.in", "*.png"]
+
+[project.scripts]
+# Здесь можно добавить консольные команды, если нужно
+# пример: "command_name" = "module:function"

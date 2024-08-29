@@ -5,7 +5,7 @@ __all__ = [
     "__copyright__",
 ]
 
-__version__ = '0.0.5'
+__version__ = '0.1.0'
 __author__ = "Sergey Shashkov"
 __license__ = "MIT"
 __copyright__ = "Copyright 2019- Sergey Shashkov"
