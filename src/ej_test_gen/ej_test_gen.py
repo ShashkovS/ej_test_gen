@@ -207,6 +207,9 @@ class TestRunner:
             cmd = ' '.join([self.cpp_compiler, self.solution, '-o', self._compiled])
             if self.use_WSL:
                 cmd = 'bash -c "{}"'.format(cmd)
+            else:
+                cmd = ' '.join(cmd)
+
             lg.debug(cmd)
             pr = subprocess.Popen(
                 cmd,

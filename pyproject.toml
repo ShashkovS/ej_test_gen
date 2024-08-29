@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ej_test_gen"
-version = "0.1.2"  # Версию нужно будет поддерживать вручную
+version = "0.1.3"  # Версию нужно будет поддерживать вручную
 description = "Create tests for ejudge and co"
 readme = "README.md"
 authors = [
