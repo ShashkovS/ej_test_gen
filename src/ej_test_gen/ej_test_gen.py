@@ -5,6 +5,7 @@ import time
 import sys
 import logging
 import random
+import platform
 
 random.seed(2000)
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +14,7 @@ lg = logging.getLogger('Runner')
 __all__ = ['TestRunner', 'random']
 
 _current_path = os.getcwd()
-
+_is_windows = platform.system() == 'Windows'
 
 class TestRunner:
     solution: str
@@ -87,7 +88,7 @@ class TestRunner:
             to_run = [self.py_executable, self.solution]
         if self.use_WSL:
             to_run = 'bash -c "{}"'.format(' '.join(to_run))
-        else:
+        elif _is_windows:
             to_run = ' '.join(to_run)
         lg.debug(to_run)
         pr = subprocess.Popen(
@@ -201,14 +202,14 @@ class TestRunner:
         if ext == 'py':
             return
         elif ext == 'cpp':
-            self._compiled = '{}.exe'.format(name)
+            self._compiled = '{}.exe'.format(name) if _is_windows else name
             if os.path.isfile(self._compiled):
                 os.remove(self._compiled)
-            cmd = ' '.join([self.cpp_compiler, self.solution, '-o', self._compiled])
+            cmd = [self.cpp_compiler, self.solution, '-o', self._compiled]
             if self.use_WSL:
-                cmd = 'bash -c "{}"'.format(cmd)
-            else:
-                cmd = ' '.join(cmd)
+                cmd = 'bash -c "{}"'.format(' '.join(cmd))
+            elif _is_windows:
+                ' '.join(cmd)
 
             lg.debug(cmd)
             pr = subprocess.Popen(
