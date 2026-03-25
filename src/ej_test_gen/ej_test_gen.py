@@ -86,7 +86,7 @@ class TestRunner:
             to_run = ['./' + self._compiled]
         else:  # TODO Вообще-то, это если питон
             to_run = [self.py_executable, self.solution]
-        if self.use_WSL:
+        if self.use_WSL and _is_windows:
             to_run = 'bash -c "{}"'.format(' '.join(to_run))
         elif _is_windows:
             to_run = ' '.join(to_run)
@@ -206,10 +206,10 @@ class TestRunner:
             if os.path.isfile(self._compiled):
                 os.remove(self._compiled)
             cmd = [self.cpp_compiler, self.solution, '-o', self._compiled]
-            if self.use_WSL:
+            if self.use_WSL and _is_windows:
                 cmd = 'bash -c "{}"'.format(' '.join(cmd))
             elif _is_windows:
-                ' '.join(cmd)
+                cmd = ' '.join(cmd)
 
             lg.debug(cmd)
             pr = subprocess.Popen(
