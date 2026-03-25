@@ -30,6 +30,11 @@ where = ["src"]
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.rst", "*.in", "*.png"]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]
+
 [project.scripts]
 # Здесь можно добавить консольные команды, если нужно
 # пример: "command_name" = "module:function"
