@@ -13,12 +13,12 @@ lg = logging.getLogger('Runner')
 
 __all__ = ['TestRunner', 'random']
 
-_current_path = os.getcwd()
 _is_windows = platform.system() == 'Windows'
 
 class TestRunner:
     solution: str
-    tests_path: str
+    working_dir: str
+    tests_dir: str
 
     test_name_template: str
     test_is_binary: bool
@@ -34,10 +34,13 @@ class TestRunner:
     use_WSL: bool
     compilation_timeout: int
 
+    on_error: str  # 'raise' | 'skip'
+
     def __init__(
         self,
         solution='sol.py',
-        tests_path=_current_path,
+        working_dir='.',
+        tests_dir='.',
 
         test_name_template='{:02}',
         test_is_binary=False,
@@ -53,17 +56,27 @@ class TestRunner:
         use_WSL=False,
         compilation_timeout=30,
 
+        on_error='raise',
     ):
-        # Вносим вот это всё в свои атрибуты
         self.__dict__.update(locals())
-        os.chdir(self.tests_path)
+
+        # working_dir: relative paths resolved from cwd at init time
+        if not os.path.isabs(self.working_dir):
+            self.working_dir = os.path.normpath(os.path.join(os.getcwd(), self.working_dir))
+        # tests_dir: relative paths resolved from working_dir
+        if not os.path.isabs(self.tests_dir):
+            self.tests_dir = os.path.normpath(os.path.join(self.working_dir, self.tests_dir))
+
+        os.makedirs(self.tests_dir, exist_ok=True)
+        os.chdir(self.working_dir)
         self.compile_sol()
         self._clean_up()
 
     def __repr__(self):
         return (f'{self.__class__.__name__}('
                 f'  {self.solution=!r}, '
-                f'  {self.tests_path=!r}, '
+                f'  {self.working_dir=!r}, '
+                f'  {self.tests_dir=!r}, '
                 f'  {self.test_name_template=!r}, '
                 f'  {self.test_is_binary=!r}, '
                 f'  {self.test_encoding=!r}, '
@@ -73,14 +86,15 @@ class TestRunner:
                 f'  {self.py_executable=!r}, '
                 f'  {self.cpp_compiler=!r}, '
                 f'  {self.timeout=!r}, '
-                f'  {self.use_WSL=!r}'
+                f'  {self.use_WSL=!r}, '
+                f'  {self.on_error=!r}'
                 f')')
 
     def _run(self, to_stdin):
         if self.test_is_binary:
-            input = to_stdin
+            input_data = to_stdin
         else:
-            input = bytes(to_stdin, encoding=self.test_encoding)
+            input_data = bytes(to_stdin, encoding=self.test_encoding)
         st = time.time()
         if self._compiled:
             to_run = ['./' + self._compiled]
@@ -94,29 +108,28 @@ class TestRunner:
         pr = subprocess.Popen(
             to_run,
             stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
-            cwd=self.tests_path
+            cwd=self.working_dir
         )
-        stdout_data = pr.communicate(input=input, timeout=self.timeout)
+        stdout_bytes, stderr_bytes = pr.communicate(input=input_data, timeout=self.timeout)
         dur = time.time() - st
-        stdout_data = b''.join(stdout_data)
         if self.ans_is_binary:
-            from_stdout = stdout_data
+            from_stdout = stdout_bytes
         else:
-            from_stdout = stdout_data.decode(self.ans_encoding, errors="ignore")
+            from_stdout = stdout_bytes.decode(self.ans_encoding, errors="ignore")
             from_stdout = from_stdout.replace('\r\n', '\n').replace('\r', '\n')
             trash_pos = from_stdout.find('pydev debugger:')
             if trash_pos >= 0:
                 from_stdout = from_stdout[:trash_pos]
-        return from_stdout, dur
+        return from_stdout, stderr_bytes, pr.returncode, dur
 
     def _clean_up(self):
         # Удаляем старые тесты
-        for filename in os.listdir(self.tests_path):
+        for filename in os.listdir(self.tests_dir):
             testname = filename
             if testname.endswith('.a'):
                 testname = testname[:-2]
             if testname.isdigit():
-                os.remove(os.path.join(_current_path, filename))
+                os.remove(os.path.join(self.tests_dir, filename))
 
     @staticmethod
     def _list_test_files(path):
@@ -160,7 +173,7 @@ class TestRunner:
             # First we read the test
             try:
                 test_data = self._read_test_or_ans(
-                    os.path.join(self.tests_path, tname), self.test_is_binary, self.test_encoding
+                    os.path.join(self.tests_dir, tname), self.test_is_binary, self.test_encoding
                 )
             except Exception as e:
                 lg.error('Error while reading test ' + tname + ': ' + str(e))
@@ -169,7 +182,7 @@ class TestRunner:
             tname += self.ans_suffix
             try:
                 ans_data = self._read_test_or_ans(
-                    os.path.join(self.tests_path, tname), self.ans_is_binary, self.ans_encoding
+                    os.path.join(self.tests_dir, tname), self.ans_is_binary, self.ans_encoding
                 )
             except Exception as e:
                 lg.error('Error while reading test result for ' + tname + ': ' + str(e))
@@ -177,7 +190,7 @@ class TestRunner:
 
             # Ok, now we are ready to run pgm
             try:
-                from_stdout, dur = self._run(to_stdin=test_data)
+                from_stdout, stderr_bytes, returncode, dur = self._run(to_stdin=test_data)
             except Exception as e:
                 lg.error('Error while running test ' + tname + ': ' + str(e))
                 continue
@@ -215,7 +228,7 @@ class TestRunner:
             pr = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                cwd=self.tests_path
+                cwd=self.working_dir
             )
             stdout, stderr = pr.communicate(timeout=self.compilation_timeout)
             lg.debug('stdout={}\nstderr={}'.format(stdout, stderr))
@@ -223,7 +236,7 @@ class TestRunner:
                 raise EnvironmentError(stderr.decode('utf-8', 'ignore'))
 
     def run_test(self):
-        test_files = self._list_test_files(self.tests_path)
+        test_files = self._list_test_files(self.tests_dir)
         self._run_given_tests(test_files)
 
     def test(self, test, *, _test_num=[0], _max_len=40):
@@ -239,7 +252,26 @@ class TestRunner:
             ), end=''
         )
 
-        ans, dur = self._run(test)
+        ans, stderr_bytes, returncode, dur = self._run(test)
+
+        failed = returncode != 0 or bool(stderr_bytes)
+        if failed:
+            stderr_preview = stderr_bytes.decode('utf-8', errors='replace')[:200] if stderr_bytes else ''
+            if self.on_error == 'raise':
+                print('ERROR (returncode={})'.format(returncode))
+                raise RuntimeError(
+                    'Test {}: solution exited with returncode={}, stderr={!r}'.format(
+                        _test_num_str, returncode, stderr_preview
+                    )
+                )
+            else:  # 'skip'
+                print('skipped (returncode={}{})'.format(
+                    returncode,
+                    ', stderr: ' + stderr_preview if stderr_preview else ''
+                ))
+                _test_num[0] -= 1
+                return
+
         ans_prt = self._prc_text_for_console(ans, self.ans_is_binary)
         if dur <= self.timeout:
             print(
@@ -249,9 +281,9 @@ class TestRunner:
                 )
             )
 
-            with open(_test_num_str, 'w' + ('b' if self.test_is_binary else '')) as f:
+            with open(os.path.join(self.tests_dir, _test_num_str), 'w' + ('b' if self.test_is_binary else '')) as f:
                 f.write(test)
-            with open(_ans_num_str, 'w' + ('b' if self.ans_is_binary else '')) as f:
+            with open(os.path.join(self.tests_dir, _ans_num_str), 'w' + ('b' if self.ans_is_binary else '')) as f:
                 f.write(ans)
         else:
             print('timeout', '{:.2}c'.format(dur))
