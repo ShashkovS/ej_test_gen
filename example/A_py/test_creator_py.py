@@ -1,5 +1,5 @@
 from ej_test_gen import TestRunner, random
-runner = TestRunner(solution="sol.py")
+runner = TestRunner(solution="sol.py", tests_dir="tests")
 
 runner.test("""3""")
 runner.test("""5""")

@@ -1,6 +1,6 @@
 from ej_test_gen import TestRunner, random
 
-runner = TestRunner(solution="sol.cpp", use_WSL=True)
+runner = TestRunner(solution="sol.cpp", tests_dir="tests", use_WSL=True)
 
 runner.test("""3""")
 runner.test("""5""")

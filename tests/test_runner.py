@@ -1,6 +1,7 @@
 import os
 import platform
 import sqlite3
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -252,8 +253,8 @@ class TestBinaryInputOutput:
 # ---------------------------------------------------------------------------
 
 class TestTestsDir:
-    def test_default_tests_dir_equals_tests_path(self, tmp_path):
-        """Default tests_dir='.' stores files directly in tests_path."""
+    def test_default_tests_dir_equals_working_dir(self, tmp_path):
+        """Default tests_dir='.' stores files directly in working_dir."""
         sol = write_solution(tmp_path, "print(int(input()) + 1)")
         runner = TestRunner(solution=sol, working_dir=str(tmp_path))
         runner.test('9')
@@ -263,7 +264,7 @@ class TestTestsDir:
         assert get_answer_file(inputs[0]).read_text().strip() == '10'
 
     def test_relative_tests_dir_created_automatically(self, tmp_path):
-        """Relative tests_dir is created under tests_path automatically."""
+        """Relative tests_dir is created under working_dir automatically."""
         sol = write_solution(tmp_path, "print(int(input()) * 3)")
         subdir = tmp_path / 'generated'
         assert not subdir.exists()
@@ -275,7 +276,7 @@ class TestTestsDir:
         inputs = get_input_files(subdir)
         assert len(inputs) == 1
         assert get_answer_file(inputs[0]).read_text().strip() == '21'
-        # Root tests_path must stay clean of test files
+        # Root working_dir must stay clean of test files
         assert get_input_files(tmp_path) == []
 
     def test_nested_relative_tests_dir_created(self, tmp_path):
@@ -289,7 +290,7 @@ class TestTestsDir:
         assert len(get_input_files(nested)) == 1
 
     def test_absolute_tests_dir(self, tmp_path):
-        """Absolute tests_dir path is used as-is regardless of tests_path."""
+        """Absolute tests_dir path is used as-is regardless of working_dir."""
         sol_dir = tmp_path / 'sol'
         sol_dir.mkdir()
         out_dir = tmp_path / 'out'
@@ -318,7 +319,7 @@ class TestTestsDir:
         assert len(get_input_files(subdir)) == 1
 
     def test_cleanup_only_affects_tests_dir(self, tmp_path):
-        """_clean_up removes old test files only from tests_dir, not tests_path root."""
+        """_clean_up removes old test files only from tests_dir, not working_dir root."""
         sol = write_solution(tmp_path, "print('ok')")
         subdir = tmp_path / 'tests'
 
@@ -334,20 +335,93 @@ class TestTestsDir:
 
 
 # ---------------------------------------------------------------------------
+# working_dir resolution
+# ---------------------------------------------------------------------------
+
+class TestWorkingDir:
+    def test_default_working_dir_is_creator_script_dir(self, tmp_path):
+        """Without working_dir, resolve sol.py and tests_dir relative to gen.py."""
+        src_path = Path(__file__).parent.parent / 'src'
+        task_dir = tmp_path / 'task'
+        task_dir.mkdir()
+        (task_dir / 'sol.py').write_text("print(input())\n", encoding='utf-8')
+        (task_dir / 'gen.py').write_text(
+            "import sys\n"
+            f"sys.path.insert(0, {str(src_path)!r})\n"
+            "from ej_test_gen import TestRunner\n"
+            "runner = TestRunner(solution='sol.py', tests_dir='tests')\n"
+            "runner.test('hello')\n",
+            encoding='utf-8',
+        )
+
+        result = subprocess.run(
+            [sys.executable, str(task_dir / 'gen.py')],
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert (task_dir / 'tests' / '01').read_text(encoding='utf-8') == 'hello'
+        assert (task_dir / 'tests' / '01.a').read_text(encoding='utf-8').strip() == 'hello'
+        assert not (tmp_path / 'tests').exists()
+
+    def test_explicit_relative_working_dir_uses_process_cwd(self, tmp_path):
+        """Explicit working_dir='.' keeps the old cwd-based behavior."""
+        src_path = Path(__file__).parent.parent / 'src'
+        cwd_dir = tmp_path / 'cwd'
+        task_dir = tmp_path / 'task'
+        cwd_dir.mkdir()
+        task_dir.mkdir()
+        (cwd_dir / 'sol.py').write_text("print(input()[::-1])\n", encoding='utf-8')
+        (task_dir / 'gen.py').write_text(
+            "import sys\n"
+            f"sys.path.insert(0, {str(src_path)!r})\n"
+            "from ej_test_gen import TestRunner\n"
+            "runner = TestRunner(solution='sol.py', working_dir='.', tests_dir='tests')\n"
+            "runner.test('abc')\n",
+            encoding='utf-8',
+        )
+
+        result = subprocess.run(
+            [sys.executable, str(task_dir / 'gen.py')],
+            cwd=str(cwd_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert (cwd_dir / 'tests' / '01').read_text(encoding='utf-8') == 'abc'
+        assert (cwd_dir / 'tests' / '01.a').read_text(encoding='utf-8').strip() == 'cba'
+        assert not (task_dir / 'tests').exists()
+
+    def test_constructor_does_not_change_process_cwd(self, tmp_path):
+        """TestRunner should use subprocess cwd without changing the caller's cwd."""
+        cwd_before = Path.cwd()
+        sol = write_solution(tmp_path, "print(input())")
+
+        TestRunner(solution=sol, working_dir=tmp_path)
+
+        assert Path.cwd() == cwd_before
+
+
+# ---------------------------------------------------------------------------
 # on_error behaviour
 # ---------------------------------------------------------------------------
 
 class TestOnError:
-    def test_raise_on_nonzero_exit(self, tmp_path):
-        """on_error='raise' (default) raises RuntimeError on non-zero returncode."""
+    def test_default_on_nonzero_exit(self, tmp_path):
+        """on_error='default' raises RuntimeError on non-zero returncode."""
         sol = write_solution(tmp_path, "raise ValueError('boom')")
         runner = TestRunner(solution=sol, working_dir=str(tmp_path))
 
         with pytest.raises(RuntimeError, match='returncode'):
             runner.test('anything')
 
-    def test_raise_on_stderr(self, tmp_path):
-        """on_error='raise' raises RuntimeError when solution writes to stderr."""
+    def test_default_on_stderr(self, tmp_path):
+        """on_error='default' raises RuntimeError when solution writes to stderr."""
         code = "import sys; sys.stderr.write('oops\\n'); print('ok')"
         sol = write_solution(tmp_path, code)
         runner = TestRunner(solution=sol, working_dir=str(tmp_path))
@@ -355,8 +429,8 @@ class TestOnError:
         with pytest.raises(RuntimeError):
             runner.test('anything')
 
-    def test_raise_no_files_created(self, tmp_path):
-        """When on_error='raise', no test files are written before the exception."""
+    def test_default_no_files_created(self, tmp_path):
+        """When on_error='default', no test files are written before the exception."""
         sol = write_solution(tmp_path, "raise RuntimeError('x')")
         runner = TestRunner(solution=sol, working_dir=str(tmp_path))
 
@@ -365,17 +439,17 @@ class TestOnError:
 
         assert get_input_files(tmp_path) == []
 
-    def test_skip_on_nonzero_exit(self, tmp_path):
-        """on_error='skip' silently skips tests where solution crashes."""
+    def test_ignore_on_nonzero_exit(self, tmp_path):
+        """on_error='ignore' silently skips tests where solution crashes."""
         sol = write_solution(tmp_path, "raise ValueError('boom')")
-        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='skip')
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='ignore')
 
         # Must not raise
         runner.test('anything')
         assert get_input_files(tmp_path) == []
 
-    def test_skip_does_not_advance_counter(self, tmp_path):
-        """Skipped tests don't consume a test number slot."""
+    def test_ignore_does_not_advance_counter(self, tmp_path):
+        """Ignored tests don't consume a test number slot."""
         code = """\
 import sys
 n = int(input())
@@ -384,7 +458,7 @@ if n < 0:
 print(n * 2)
 """
         sol = write_solution(tmp_path, code)
-        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='skip')
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='ignore')
 
         runner.test('3')   # succeeds → file '01' (or some N)
         runner.test('-1')  # crashes  → skipped, counter not advanced
@@ -398,19 +472,66 @@ print(n * 2)
         nums = [int(f.name) for f in inputs]
         assert nums[1] == nums[0] + 1
 
-    def test_skip_on_stderr(self, tmp_path):
-        """on_error='skip' skips tests that produce stderr output."""
+    def test_ignore_on_stderr(self, tmp_path):
+        """on_error='ignore' skips tests that produce stderr output."""
         code = "import sys; sys.stderr.write('warn\\n'); print('result')"
         sol = write_solution(tmp_path, code)
-        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='skip')
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='ignore')
 
         runner.test('x')
         assert get_input_files(tmp_path) == []
 
-    def test_clean_run_not_affected(self, tmp_path):
-        """on_error='raise' must not interfere with completely clean solutions."""
-        sol = write_solution(tmp_path, "print(input()[::-1])")
+    def test_output_uses_stderr_as_answer(self, tmp_path):
+        """on_error='output' writes traceback/stderr as the answer file."""
+        sol = write_solution(tmp_path, "raise ValueError('boom')")
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='output')
+
+        runner.test('anything')
+
+        inputs = get_input_files(tmp_path)
+        assert len(inputs) == 1
+        assert inputs[0].read_text(encoding='utf-8') == 'anything'
+        answer = get_answer_file(inputs[0]).read_text(encoding='utf-8')
+        assert 'Traceback' in answer
+        assert 'ValueError: boom' in answer
+
+    def test_output_without_stderr_uses_returncode_message(self, tmp_path):
+        """on_error='output' has deterministic output even without stderr."""
+        sol = write_solution(tmp_path, "import os; os._exit(7)")
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='output')
+
+        runner.test('anything')
+
+        inputs = get_input_files(tmp_path)
+        assert get_answer_file(inputs[0]).read_text(encoding='utf-8') == 'Solution exited with returncode=7\n'
+
+    def test_old_raise_alias_still_works(self, tmp_path):
+        """on_error='raise' remains an alias for on_error='default'."""
+        sol = write_solution(tmp_path, "raise ValueError('boom')")
         runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='raise')
+
+        with pytest.raises(RuntimeError, match='returncode'):
+            runner.test('anything')
+
+    def test_old_skip_alias_still_works(self, tmp_path):
+        """on_error='skip' remains an alias for on_error='ignore'."""
+        sol = write_solution(tmp_path, "raise ValueError('boom')")
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='skip')
+
+        runner.test('anything')
+        assert get_input_files(tmp_path) == []
+
+    def test_invalid_on_error(self, tmp_path):
+        """Unknown on_error values fail fast in TestRunner construction."""
+        sol = write_solution(tmp_path, "print('ok')")
+
+        with pytest.raises(ValueError, match='on_error'):
+            TestRunner(solution=sol, working_dir=str(tmp_path), on_error='unknown')
+
+    def test_clean_run_not_affected(self, tmp_path):
+        """on_error='default' must not interfere with completely clean solutions."""
+        sol = write_solution(tmp_path, "print(input()[::-1])")
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path), on_error='default')
 
         runner.test('abc')
         inputs = get_input_files(tmp_path)

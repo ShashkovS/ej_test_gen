@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-.
+import inspect
 import subprocess
 import os
 import time
@@ -14,8 +15,17 @@ lg = logging.getLogger('Runner')
 __all__ = ['TestRunner', 'random']
 
 _is_windows = platform.system() == 'Windows'
+_ON_ERROR_ALIASES = {
+    'default': 'default',
+    'raise': 'default',
+    'ignore': 'ignore',
+    'skip': 'ignore',
+    'output': 'output',
+}
 
 class TestRunner:
+    __test__ = False
+
     solution: str
     working_dir: str
     tests_dir: str
@@ -34,12 +44,12 @@ class TestRunner:
     use_WSL: bool
     compilation_timeout: int
 
-    on_error: str  # 'raise' | 'skip'
+    on_error: str  # 'default' | 'ignore' | 'output'
 
     def __init__(
         self,
         solution='sol.py',
-        working_dir='.',
+        working_dir=None,
         tests_dir='.',
 
         test_name_template='{:02}',
@@ -56,11 +66,21 @@ class TestRunner:
         use_WSL=False,
         compilation_timeout=30,
 
-        on_error='raise',
+        on_error='default',
     ):
-        self.__dict__.update(locals())
+        self.__dict__.update({k: v for k, v in locals().items() if k != 'self'})
 
-        # working_dir: relative paths resolved from cwd at init time
+        self.solution = os.fspath(self.solution)
+        if self.tests_dir is not None:
+            self.tests_dir = os.fspath(self.tests_dir)
+        self.on_error = self._normalize_on_error(self.on_error)
+
+        # working_dir=None: default to the directory of the script creating TestRunner.
+        # Explicit relative working_dir values keep the old cwd-based behavior.
+        if self.working_dir is None:
+            self.working_dir = self._default_working_dir()
+        else:
+            self.working_dir = os.fspath(self.working_dir)
         if not os.path.isabs(self.working_dir):
             self.working_dir = os.path.normpath(os.path.join(os.getcwd(), self.working_dir))
         # tests_dir: relative paths resolved from working_dir
@@ -68,9 +88,28 @@ class TestRunner:
             self.tests_dir = os.path.normpath(os.path.join(self.working_dir, self.tests_dir))
 
         os.makedirs(self.tests_dir, exist_ok=True)
-        os.chdir(self.working_dir)
         self.compile_sol()
         self._clean_up()
+
+    @staticmethod
+    def _default_working_dir():
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back.f_back if frame and frame.f_back else None
+            filename = caller_frame.f_code.co_filename if caller_frame else None
+            if filename and not filename.startswith('<'):
+                return os.path.dirname(os.path.abspath(filename))
+            return os.getcwd()
+        finally:
+            del frame
+
+    @staticmethod
+    def _normalize_on_error(on_error):
+        try:
+            return _ON_ERROR_ALIASES[on_error]
+        except KeyError:
+            allowed = "', '".join(sorted(_ON_ERROR_ALIASES))
+            raise ValueError("on_error must be one of: '{}'".format(allowed))
 
     def __repr__(self):
         return (f'{self.__class__.__name__}('
@@ -97,7 +136,7 @@ class TestRunner:
             input_data = bytes(to_stdin, encoding=self.test_encoding)
         st = time.time()
         if self._compiled:
-            to_run = ['./' + self._compiled]
+            to_run = [self._compiled if os.path.isabs(self._compiled) else './' + self._compiled]
         else:  # TODO Вообще-то, это если питон
             to_run = [self.py_executable, self.solution]
         if self.use_WSL and _is_windows:
@@ -166,6 +205,16 @@ class TestRunner:
             test_data = f.read()
         return test_data
 
+    def _stderr_as_answer(self, stderr_bytes, returncode):
+        if stderr_bytes:
+            if self.ans_is_binary:
+                return stderr_bytes
+            return stderr_bytes.decode(self.ans_encoding, errors='replace').replace('\r\n', '\n').replace('\r', '\n')
+        fallback = 'Solution exited with returncode={}\n'.format(returncode)
+        if self.ans_is_binary:
+            return fallback.encode(self.ans_encoding, errors='replace')
+        return fallback
+
     def _run_given_tests(self, test_files):
         for tname in test_files:
             lg.info('Processing test ' + tname + '...')
@@ -216,8 +265,11 @@ class TestRunner:
             return
         elif ext == 'cpp':
             self._compiled = '{}.exe'.format(name) if _is_windows else name
-            if os.path.isfile(self._compiled):
-                os.remove(self._compiled)
+            compiled_path = self._compiled
+            if not os.path.isabs(compiled_path):
+                compiled_path = os.path.join(self.working_dir, compiled_path)
+            if os.path.isfile(compiled_path):
+                os.remove(compiled_path)
             cmd = [self.cpp_compiler, self.solution, '-o', self._compiled]
             if self.use_WSL and _is_windows:
                 cmd = 'bash -c "{}"'.format(' '.join(cmd))
@@ -257,20 +309,22 @@ class TestRunner:
         failed = returncode != 0 or bool(stderr_bytes)
         if failed:
             stderr_preview = stderr_bytes.decode('utf-8', errors='replace')[:200] if stderr_bytes else ''
-            if self.on_error == 'raise':
+            if self.on_error == 'default':
                 print('ERROR (returncode={})'.format(returncode))
                 raise RuntimeError(
                     'Test {}: solution exited with returncode={}, stderr={!r}'.format(
                         _test_num_str, returncode, stderr_preview
                     )
                 )
-            else:  # 'skip'
+            elif self.on_error == 'ignore':
                 print('skipped (returncode={}{})'.format(
                     returncode,
                     ', stderr: ' + stderr_preview if stderr_preview else ''
                 ))
                 _test_num[0] -= 1
                 return
+            else:  # 'output'
+                ans = self._stderr_as_answer(stderr_bytes, returncode)
 
         ans_prt = self._prc_text_for_console(ans, self.ans_is_binary)
         if dur <= self.timeout:
