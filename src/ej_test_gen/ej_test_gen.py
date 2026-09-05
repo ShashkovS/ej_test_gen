@@ -293,6 +293,8 @@ class TestRunner:
 
     def test(self, test, *, _test_num=[0], _max_len=40):
         test = test.strip()
+        if not self.test_is_binary:
+            test += '\n'
         text_prt = self._prc_text_for_console(test, self.test_is_binary)
         _test_num[0] += 1
         _test_num_str = self.test_name_template.format(_test_num[0])
@@ -305,6 +307,8 @@ class TestRunner:
         )
 
         ans, stderr_bytes, returncode, dur = self._run(test)
+        if not self.ans_is_binary and not ans.endswith('\n'):
+            ans += '\n'
 
         failed = returncode != 0 or bool(stderr_bytes)
         if failed:

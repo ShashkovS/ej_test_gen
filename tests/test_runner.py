@@ -40,8 +40,17 @@ class TestTextIO:
 
         inputs = get_input_files(tmp_path)
         assert len(inputs) == 1
-        assert inputs[0].read_text(encoding='utf-8') == 'hello'
+        assert inputs[0].read_text(encoding='utf-8') == 'hello\n'
         assert get_answer_file(inputs[0]).read_text(encoding='utf-8').strip() == 'hello'
+
+    def test_text_files_have_final_newline(self, tmp_path):
+        sol = write_solution(tmp_path, "import sys; sys.stdout.write(input())")
+        runner = TestRunner(solution=sol, working_dir=str(tmp_path))
+        runner.test('hello\n\n')
+
+        input_file = get_input_files(tmp_path)[0]
+        assert input_file.read_bytes() == b'hello\n'
+        assert get_answer_file(input_file).read_bytes() == b'hello\n'
 
     def test_arithmetic(self, tmp_path):
         sol = write_solution(tmp_path, "a, b = map(int, input().split()); print(a + b)")
@@ -363,7 +372,7 @@ class TestWorkingDir:
         )
 
         assert result.returncode == 0, result.stderr
-        assert (task_dir / 'tests' / '01').read_text(encoding='utf-8') == 'hello'
+        assert (task_dir / 'tests' / '01').read_text(encoding='utf-8') == 'hello\n'
         assert (task_dir / 'tests' / '01.a').read_text(encoding='utf-8').strip() == 'hello'
         assert not (tmp_path / 'tests').exists()
 
@@ -393,7 +402,7 @@ class TestWorkingDir:
         )
 
         assert result.returncode == 0, result.stderr
-        assert (cwd_dir / 'tests' / '01').read_text(encoding='utf-8') == 'abc'
+        assert (cwd_dir / 'tests' / '01').read_text(encoding='utf-8') == 'abc\n'
         assert (cwd_dir / 'tests' / '01.a').read_text(encoding='utf-8').strip() == 'cba'
         assert not (task_dir / 'tests').exists()
 
@@ -490,7 +499,7 @@ print(n * 2)
 
         inputs = get_input_files(tmp_path)
         assert len(inputs) == 1
-        assert inputs[0].read_text(encoding='utf-8') == 'anything'
+        assert inputs[0].read_text(encoding='utf-8') == 'anything\n'
         answer = get_answer_file(inputs[0]).read_text(encoding='utf-8')
         assert 'Traceback' in answer
         assert 'ValueError: boom' in answer
