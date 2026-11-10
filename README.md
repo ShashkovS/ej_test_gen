@@ -1,9 +1,9 @@
-# Create tests for ejudge using solution
+# ej_test_gen
 
-## Install
-```bash
-pip install git+https://github.com/ShashkovS/ej_test_gen.git --user --upgrade
-```
+Generate judge inputs and model answers through TestRunner.
+Read [the documentation map](docs/README.md) before changing the library or choosing output paths.
+
+The CSTLF shared runtime uses the pinned PyPI package; this checkout has its own development environment.
 
 ## Example:
 
@@ -45,39 +45,8 @@ for tests_in_group, group_max in [(2, 10), (5, 50)]:
 008: 15        -->    1307674368000¶                               Done! 0.27c
 ```
 
-`TestRunner` resolves relative `solution` and `tests_dir` paths from the
-directory of the script where `TestRunner` is created. This means `sol.py` and
-`test_creator.py` can live in the same directory, and generated tests will be
-written to `tests/` next to them even if you run the script from another
-directory:
 
-```bash
-python path/to/test_creator.py
-```
-
-Pass `working_dir` explicitly when you want a different base directory. For
-example, `working_dir="."` keeps the old behavior where relative paths are
-resolved from the process current working directory.
-
-## Solution errors
-
-Use `on_error` to choose what happens when the solution exits with a non-zero
-return code or writes to stderr:
-
-```python
-# default: stop generation and raise RuntimeError
-runner = TestRunner(solution="sol.py", tests_dir="tests")
-
-# ignore: skip failed tests and keep generating the next ones
-runner = TestRunner(solution="sol.py", tests_dir="tests", on_error="ignore")
-
-# output: write stderr/traceback to the answer file
-runner = TestRunner(solution="sol.py", tests_dir="tests", on_error="output")
-```
-
-Old names are still accepted for compatibility: `on_error="raise"` means
-`on_error="default"`, and `on_error="skip"` means `on_error="ignore"`.
-
+[Path/cleanup/error semantics](docs/runner-behaviour.md) and [development/release boundary](docs/development.md) are documented once.
 
 # License
 
