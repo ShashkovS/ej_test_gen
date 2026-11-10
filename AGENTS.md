@@ -27,3 +27,7 @@ workspace installation with an editable checkout to make a test pass.
 | Change library behaviour or release assumptions | `docs/development.md` |
 | Understand paths, cleanup, wrapping and errors | `docs/runner-behaviour.md` |
 | Build a course package | skill `cstlf-tests` or `cstlf-tests-olymp` |
+
+Docs are part of every change: update the owning page and its row above in the
+same commit, and put durable facts here rather than in an agent's memory
+(workspace map, "Documentation is part of the change").
